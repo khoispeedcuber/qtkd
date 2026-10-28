@@ -25,8 +25,8 @@ dotnet tool install --global dotnet-ef --version "10.*"
 ## 2. Lấy mã nguồn
 
 ```bash
-git clone <địa chỉ repository>
-cd <tên thư mục vừa clone>
+git clone https://github.com/khoispeedcuber/qtkd.git
+cd qtkd
 ```
 
 Các lệnh bên dưới chạy tại thư mục gốc (nơi có file `QTKD.sln`).
