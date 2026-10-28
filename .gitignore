@@ -1,0 +1,31 @@
+# Build output
+bin/
+obj/
+out/
+publish/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.DotSettings.user
+
+# Test results
+TestResults/
+*.trx
+
+# Bí mật / cấu hình cục bộ: KHÔNG commit
+secrets.json
+.env
+.env.*
+appsettings.*.local.json
+*.local.json
+
+# Log
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
