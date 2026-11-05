@@ -1,4 +1,4 @@
-# Kiến trúc QTKD — Tuần 05
+# Kiến trúc QTKD
 
 API quản trị kinh doanh theo kiến trúc phân lớp: Controller → Service → Repository → DbContext → PostgreSQL.
 
@@ -26,7 +26,7 @@ flowchart TB
 | DbContext | Ánh xạ bảng, quan hệ, ràng buộc | |
 | Middleware | Chuyển exception thành response lỗi thống nhất | Nghiệp vụ |
 
-Các lớp được nối bằng Dependency Injection, đăng ký trong `Program.cs`. Entity không lộ ra ngoài API: Controller chỉ trả DTO (`CustomerDto`, `ContractDto`).
+Các lớp được nối bằng Dependency Injection, đăng ký trong `Program.cs`. Entity không lộ ra ngoài API: Controller chỉ trả DTO (`CustomerDto`, `ContractDto`, `PriceListDto`, `PriceItemDto`, `SubmitContractResponse`).
 
 ## 2. Luồng xử lý `GET /api/contracts/1`
 
@@ -61,6 +61,9 @@ Truy vấn dùng `async/await` vì đây là thao tác I/O: trong lúc chờ Pos
 | `GET /api/contracts/abc` (sai kiểu) | `[ApiController]` model binding | `400` + `errors.id` |
 | `GET /api/contracts/0`, `/-1` | `ContractService` ném `RequestValidationException` | `400` ProblemDetails |
 | `GET /api/contracts/9999` | `ContractService` ném `NotFoundException` | `404` ProblemDetails |
+| `POST/PUT` thiếu trường bắt buộc, sai định dạng | `[ApiController]` + DataAnnotations trên request | `400` + `errors.<Trường>` |
+| Vi phạm CTR-02 (thiếu điều kiện gửi duyệt), CTR-03 (Draft → Approved) | `ContractService` ném `RuleViolationException` | `400` ProblemDetails có `rule`; CTR-02 kèm `errors` theo trường |
+| Vi phạm CTR-01, gửi duyệt khi không còn Draft, trùng số hợp đồng / mã dịch vụ, gửi trùng đồng thời | `ContractService`, `PriceListService` ném `ConflictException`; `RepositoryBase` đổi lỗi trùng khóa của database thành `ConflictException` | `409` ProblemDetails (có `rule` với CTR-01 và US03) |
 | Lỗi bất ngờ (mất kết nối DB, bảng chưa tồn tại...) | `GlobalExceptionMiddleware` | `500`, thông báo chung cho client |
 
 Lỗi 500 không trả chi tiết exception cho client để tránh lộ cấu trúc hệ thống; chi tiết nằm trong log, đối chiếu bằng `traceId` trong response.
@@ -75,6 +78,8 @@ Lỗi 500 không trả chi tiết exception cho client để tránh lộ cấu t
 - Trạng thái lưu dạng chuỗi (`Draft`, `Active`...) để dễ đọc trong PostgreSQL và khi đối chiếu với response của API.
 - Ngày hiệu lực dùng `DateOnly` (kiểu `date` trong PostgreSQL), tránh lỗi múi giờ.
 - Check constraint ở database (`StartDate <= EndDate`, `UnitPrice >= 0`) là lớp bảo vệ cuối cùng, độc lập với code nghiệp vụ.
-- Các trường lấy theo gợi ý tối thiểu của đặc tả Phase 2; tên trạng thái hợp đồng theo đặc tả đó.
+- `ApprovalRequests` có chỉ mục duy nhất trên `ContractId`: mỗi hợp đồng chỉ có một yêu cầu duyệt, chặn gửi trùng ngay ở database; quan hệ với Contract đặt `Restrict`.
+- `StartDate`, `EndDate`, `Content`, `AttachmentFileName` của Contract có thể rỗng khi còn `Draft`; CTR-02 chỉ kiểm khi gửi duyệt.
+- Các trường lấy theo gợi ý tối thiểu của đặc tả Phase 2; tên trạng thái hợp đồng theo đặc tả đó. Các cột `Content`, `AttachmentFileName` và bảng `ApprovalRequests` của tuần 6 là giả định, ghi rõ trong [doi-chieu-quy-tac.md](doi-chieu-quy-tac.md).
 
 **Cấu hình.** Chuỗi kết nối trong `appsettings.json` không chứa mật khẩu; mật khẩu đặt bằng User Secrets hoặc biến môi trường. Dữ liệu mẫu (`DbSeeder`) chỉ chạy ở môi trường Development, chỉ khi database đã migrate, và không thêm trùng.
