@@ -51,6 +51,10 @@ public class GlobalExceptionMiddleware
                 (StatusCodes.Status404NotFound, "Không tìm thấy dữ liệu", ex.Message),
             RequestValidationException =>
                 (StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không hợp lệ", ex.Message),
+            RuleViolationException =>
+                (StatusCodes.Status400BadRequest, "Vi phạm quy tắc nghiệp vụ", ex.Message),
+            ConflictException =>
+                (StatusCodes.Status409Conflict, "Xung đột trạng thái dữ liệu", ex.Message),
             _ =>
                 (StatusCodes.Status500InternalServerError, "Lỗi hệ thống",
                  "Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau.")
@@ -70,6 +74,18 @@ public class GlobalExceptionMiddleware
             Instance = context.Request.Path
         };
         problem.Extensions["traceId"] = context.TraceIdentifier;
+
+        // Thông tin thêm cho lỗi nghiệp vụ: mã quy tắc và lỗi theo trường (cùng dạng "errors" với lỗi model validation).
+        switch (ex)
+        {
+            case RuleViolationException rule:
+                problem.Extensions["rule"] = rule.Rule;
+                if (rule.Errors.Count > 0) problem.Extensions["errors"] = rule.Errors;
+                break;
+            case ConflictException { Rule: not null } conflict:
+                problem.Extensions["rule"] = conflict.Rule;
+                break;
+        }
 
         context.Response.Clear();
         context.Response.StatusCode = status;

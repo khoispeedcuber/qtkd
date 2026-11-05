@@ -1,11 +1,11 @@
-# QTKD — Phase 2, Tuần 05
+# QTKD — Phase 2, Tuần 06
 
 Sinh viên: `Phạm Nguyễn Thế Khôi` — MSSV: `23120136`
 
 API quản trị kinh doanh (Customer, Contract, PriceList/PriceItem) viết bằng C# · ASP.NET Core Web API · Entity Framework Core · PostgreSQL.
 
-**Phạm vi Tuần 05:** tạo dự án, tạo database bằng EF Core migration, dữ liệu mẫu và 2 API đọc dữ liệu.
-Chưa có tạo/sửa/gửi trình duyệt hợp đồng (Tuần 06) và chưa có test tự động (Tuần 07).
+**Phạm vi Tuần 06:** API tạo/xem/sửa Customer, tạo/xem/sửa/gửi duyệt Contract, tạo/xem PriceList và PriceItem; quy tắc CTR-01/02/03 và user story US03 (gửi duyệt hợp đồng).
+Chưa có Approval thật và chưa có test tự động.
 
 ## 1. Yêu cầu cài đặt
 
@@ -76,17 +76,17 @@ $env:ConnectionStrings__QtkdDb = "Host=localhost;Port=5432;Database=qtkd;Usernam
 
 ## 5. Tạo bảng bằng migration
 
-Thư mục `src/QTKD.Api/Migrations/` đã có sẵn trong repository, chỉ cần áp dụng vào database:
+Thư mục `src/QTKD.Api/Migrations/` đã có sẵn trong repository (gồm migration tạo bảng ban đầu và migration bổ sung cho luồng gửi duyệt hợp đồng), chỉ cần áp dụng vào database:
 
 ```bash
 dotnet ef database update --project src/QTKD.Api
 ```
 
-Kết quả đúng: dòng `Applying migration '..._InitialCreate'.` rồi `Done.`
+Kết quả đúng: các dòng `Applying migration '...'.` rồi `Done.`
 
 Trong lần chạy đầu có thể thấy một khối `fail: ... SELECT "MigrationId" ... FROM "__EFMigrationsHistory"`. Đây **không phải lỗi**: EF thử đọc bảng lịch sử migration trước khi bảng này được tạo.
 
-Database `qtkd` sau đó có 4 bảng `Customers`, `Contracts`, `PriceLists`, `PriceItems` và bảng `__EFMigrationsHistory`.
+Database `qtkd` sau đó có 5 bảng `Customers`, `Contracts`, `PriceLists`, `PriceItems`, `ApprovalRequests` và bảng `__EFMigrationsHistory`.
 
 ## 6. Chạy API
 
@@ -102,52 +102,30 @@ Kết quả đúng trong console: `Now listening on: http://localhost:5080` và 
 
 Không chạy với `--no-launch-profile` (sẽ mất môi trường Development, không nạp User Secrets và không thêm dữ liệu mẫu).
 
-## 7. Thử các endpoint
+## 7. Các endpoint
 
-Mở Swagger UI, chọn endpoint, bấm **Try it out → Execute**, hoặc dùng `curl`
-(trên Windows PowerShell dùng `curl.exe`):
+Mô tả chi tiết, kèm request/response mẫu: [docs/api.md](docs/api.md). Bảng đối chiếu US03, CTR-01/02/03 với mã nguồn, các giả định và giới hạn: [docs/doi-chieu-quy-tac.md](docs/doi-chieu-quy-tac.md).
 
-```bash
-curl -i http://localhost:5080/api/customers
-curl -i http://localhost:5080/api/contracts/1
-```
-
-| Method | Endpoint | Kết quả |
+| Method | Endpoint | Chức năng |
 |---|---|---|
-| GET | `/api/customers` | `200` — danh sách khách hàng |
-| GET | `/api/contracts/{id}` | `200` — hợp đồng kèm tên khách hàng |
-| GET | `/api/contracts/9999` (không tồn tại) | `404` — `"title": "Không tìm thấy dữ liệu"` |
-| GET | `/api/contracts/0` hoặc `/api/contracts/-1` | `400` — `"detail": "Id hợp đồng phải là số nguyên dương."` |
-| GET | `/api/contracts/abc` | `400` — lỗi định dạng id |
+| GET | `/api/customers`, `/api/customers/{id}` | Xem danh sách / chi tiết khách hàng |
+| POST | `/api/customers` | Tạo khách hàng |
+| PUT | `/api/customers/{id}` | Sửa khách hàng |
+| GET | `/api/contracts`, `/api/contracts/{id}` | Xem danh sách / chi tiết hợp đồng |
+| POST | `/api/contracts` | Tạo hợp đồng (trạng thái `Draft`) |
+| PUT | `/api/contracts/{id}` | Sửa hợp đồng (CTR-01, CTR-03) |
+| POST | `/api/contracts/{id}/submit` | Gửi duyệt: `Draft` → `PendingApproval` (US03, CTR-02) |
+| GET | `/api/price-lists`, `/api/price-lists/{id}` | Xem bảng giá kèm dòng giá |
+| POST | `/api/price-lists` | Tạo bảng giá |
+| GET | `/api/price-lists/{id}/items` | Xem các dòng giá của bảng giá |
+| POST | `/api/price-lists/{id}/items` | Thêm dòng giá vào bảng giá |
 
-Kết quả mong đợi của `GET /api/customers`:
-
-```json
-[
-  { "id": 1, "name": "Công ty Minh Phát", "status": "Active" },
-  { "id": 2, "name": "Công ty Hải Đăng", "status": "Active" }
-]
-```
-
-Kết quả mong đợi của `GET /api/contracts/1`:
-
-```json
-{
-  "id": 1,
-  "contractNo": "HD-2026-018",
-  "customerId": 1,
-  "customerName": "Công ty Minh Phát",
-  "startDate": "2026-11-01",
-  "endDate": "2027-10-31",
-  "status": "Draft"
-}
-```
-
-Đối chiếu với database (pgAdmin hoặc psql, đang kết nối vào `qtkd`):
+Thử bằng Swagger UI (**Try it out → Execute**) hoặc `curl` (Windows PowerShell dùng `curl.exe`). Đối chiếu dữ liệu trong database:
 
 ```sql
 SELECT * FROM "Customers" ORDER BY "Id";
-SELECT * FROM "Contracts";
+SELECT * FROM "Contracts" ORDER BY "Id";
+SELECT * FROM "ApprovalRequests";
 ```
 
 (Tên bảng và cột có chữ hoa nên phải đặt trong dấu nháy kép.)
@@ -158,7 +136,7 @@ SELECT * FROM "Contracts";
 ├── QTKD.sln
 ├── src/QTKD.Api/
 │   ├── Controllers/    nhận request, trả response
-│   ├── DTOs/           dữ liệu trả ra qua API
+│   ├── DTOs/           dữ liệu vào/ra của API
 │   ├── Entities/       mô hình dữ liệu ánh xạ bảng
 │   ├── Services/       nghiệp vụ và validation
 │   ├── Repositories/   truy vấn database (EF Core)
@@ -167,7 +145,7 @@ SELECT * FROM "Contracts";
 │   ├── Middleware/     xử lý lỗi tập trung
 │   ├── Migrations/     migration của EF Core
 │   └── Program.cs
-└── docs/               tài liệu thiết kế
+└── docs/               tài liệu API, đối chiếu quy tắc nghiệp vụ, thiết kế
 ```
 
 Luồng xử lý: `Controller → Service → Repository → DbContext → PostgreSQL`.
@@ -182,10 +160,12 @@ Chi tiết kiến trúc và các quyết định thiết kế: [docs/architectur
 | `3D000: database "qtkd" does not exist` | Chưa tạo database ở mục 3 |
 | `Failed to connect to 127.0.0.1:5432` | PostgreSQL chưa chạy, hoặc dùng cổng khác (sửa `Port=`) |
 | `relation "Customers" does not exist` | Chưa chạy `dotnet ef database update` (mục 5) |
+| `column "Content" does not exist` | Chưa áp dụng migration mới: chạy lại `dotnet ef database update` (mục 5) |
 | Cổng 5080 đang bị chiếm | Tắt tiến trình đang chạy API cũ (`Ctrl+C`) |
 
 ## 10. Giới hạn hiện tại
 
-- Chỉ có 2 endpoint đọc dữ liệu; chưa có tạo/sửa/gửi trình duyệt hợp đồng.
-- Chưa có Approval, Payment, ký điện tử, giao diện web.
+- Chưa có module Approval: gửi duyệt thành công chỉ chuyển hợp đồng sang `PendingApproval` và ghi một dòng mô phỏng vào `ApprovalRequests`; không thể phê duyệt/từ chối.
+- Điều kiện nội dung/tệp bắt buộc của CTR-02 là giả định, chưa phải quy định chính thức (xem [docs/doi-chieu-quy-tac.md](docs/doi-chieu-quy-tac.md)).
+- Tệp đính kèm chỉ lưu tên tệp; chưa có xác thực, ký điện tử, giao diện web.
 - Chưa có test tự động.

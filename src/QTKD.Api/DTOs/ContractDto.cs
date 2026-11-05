@@ -6,6 +6,8 @@ public record ContractDto(
     string ContractNo,
     int CustomerId,
     string CustomerName,
-    DateOnly StartDate,
-    DateOnly EndDate,
+    DateOnly? StartDate,
+    DateOnly? EndDate,
+    string? Content,
+    string? AttachmentFileName,
     string Status);

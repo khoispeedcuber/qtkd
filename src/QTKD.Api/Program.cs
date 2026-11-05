@@ -17,8 +17,10 @@ var connectionString = builder.Configuration.GetConnectionString("QtkdDb")
 builder.Services.AddDbContext<QtkdDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<IContractRepository, ContractRepository>();
+builder.Services.AddScoped<IPriceListRepository, PriceListRepository>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IContractService, ContractService>();
+builder.Services.AddScoped<IPriceListService, PriceListService>();
 
 // 3) JSON: giữ nguyên tiếng Việt (không escape thành \uXXXX) cho cả Controller lẫn middleware.
 var jsonEncoder = JavaScriptEncoder.Create(UnicodeRanges.All);

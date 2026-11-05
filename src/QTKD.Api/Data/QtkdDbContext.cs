@@ -11,6 +11,7 @@ public class QtkdDbContext : DbContext
     public DbSet<Contract> Contracts => Set<Contract>();
     public DbSet<PriceList> PriceLists => Set<PriceList>();
     public DbSet<PriceItem> PriceItems => Set<PriceItem>();
+    public DbSet<ApprovalRequest> ApprovalRequests => Set<ApprovalRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,6 +26,8 @@ public class QtkdDbContext : DbContext
             e.Property(x => x.ContractNo).IsRequired().HasMaxLength(50);
             e.HasIndex(x => x.ContractNo).IsUnique();
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
+            e.Property(x => x.Content).HasMaxLength(4000);
+            e.Property(x => x.AttachmentFileName).HasMaxLength(260);
 
             e.HasOne(x => x.Customer)
              .WithMany(c => c.Contracts)
@@ -33,6 +36,17 @@ public class QtkdDbContext : DbContext
 
             e.ToTable(t => t.HasCheckConstraint(
                 "CK_Contracts_StartDate_LE_EndDate", "\"StartDate\" <= \"EndDate\""));
+        });
+
+        modelBuilder.Entity<ApprovalRequest>(e =>
+        {
+            // Mỗi hợp đồng chỉ có tối đa 1 yêu cầu phê duyệt: chặn gửi duyệt trùng ngay ở database.
+            e.HasIndex(x => x.ContractId).IsUnique();
+
+            e.HasOne(x => x.Contract)
+             .WithMany()
+             .HasForeignKey(x => x.ContractId)
+             .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<PriceList>(e =>
