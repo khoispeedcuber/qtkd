@@ -41,12 +41,12 @@ public class CustomerService : ICustomerService
         var customer = await FindAsync(id, ct);
 
         var name = RequireName(request.Name);
-        if (!Enum.TryParse<CustomerStatus>(request.Status?.Trim(), ignoreCase: true, out var status)
-            || !Enum.IsDefined(status))
-            throw new RequestValidationException("Trạng thái khách hàng phải là Active hoặc Suspended.");
+        var statusName = Enum.GetNames<CustomerStatus>()
+            .FirstOrDefault(n => n.Equals(request.Status?.Trim(), StringComparison.OrdinalIgnoreCase))
+            ?? throw new RequestValidationException("Trạng thái khách hàng phải là Active hoặc Suspended.");
 
         customer.Name = name;
-        customer.Status = status;
+        customer.Status = Enum.Parse<CustomerStatus>(statusName);
         await _customers.SaveChangesAsync(ct);
 
         return ToDto(customer);
