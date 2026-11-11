@@ -50,4 +50,4 @@ Giới hạn:
 - Chưa có xác thực/phân quyền (mã `403` trong tài liệu gốc chưa áp dụng).
 - Tệp đính kèm chỉ là tên tệp.
 - Khóa duy nhất bảo vệ chống gửi trùng nhưng chưa có cơ chế `Idempotency-Key`; gửi lại nhận `409`, không nhận lại kết quả cũ.
-- Chưa có test tự động.
+- Kiểm thử tự động cho US03 và CTR-01/02/03: xem [kiem-thu.md](kiem-thu.md).

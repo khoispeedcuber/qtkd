@@ -1,11 +1,15 @@
-# QTKD — Phase 2, Tuần 06
+# QTKD — Phase 2 (Tuần 05–07)
 
 Sinh viên: `Phạm Nguyễn Thế Khôi` — MSSV: `23120136`
+Repository: https://github.com/khoispeedcuber/qtkd
 
-API quản trị kinh doanh (Customer, Contract, PriceList/PriceItem) viết bằng C# · ASP.NET Core Web API · Entity Framework Core · PostgreSQL.
+API quản trị kinh doanh (Customer, Contract, PriceList/PriceItem) viết bằng C# · ASP.NET Core Web API · Entity Framework Core · PostgreSQL · xUnit.
 
-**Phạm vi Tuần 06:** API tạo/xem/sửa Customer, tạo/xem/sửa/gửi duyệt Contract, tạo/xem PriceList và PriceItem; quy tắc CTR-01/02/03 và user story US03 (gửi duyệt hợp đồng).
-Chưa có Approval thật và chưa có test tự động.
+| Tuần | Nội dung | Kết quả trong repository |
+|---|---|---|
+| 05 | Nền tảng: solution, entity, `QtkdDbContext`, migration, dữ liệu mẫu, API đọc dữ liệu | `src/QTKD.Api`, migration `InitialCreate`, `GET /api/customers`, `GET /api/contracts/{id}` |
+| 06 | Chức năng và quy tắc nghiệp vụ: tạo/xem/sửa Customer, Contract, PriceList/PriceItem; gửi hợp đồng trình duyệt (US03); CTR-01/02/03 | Migration `AddContractSubmission`, [docs/api.md](docs/api.md), [docs/doi-chieu-quy-tac.md](docs/doi-chieu-quy-tac.md) |
+| 07 | Kiểm thử tự động: unit test cho CTR-01/02/03, integration test TC01–TC08 trên database kiểm thử riêng; sửa lỗi phát hiện được | `tests/`, [docs/kiem-thu.md](docs/kiem-thu.md) |
 
 ## 1. Yêu cầu cài đặt
 
@@ -35,23 +39,27 @@ Các lệnh bên dưới chạy tại thư mục gốc (nơi có file `QTKD.sln`
 
 Mở công cụ truy vấn của PostgreSQL bằng tài khoản quản trị `postgres`:
 
-- **pgAdmin:** bấm chọn database `postgres`, rồi menu **Tools → Query Tool**.
+- **pgAdmin:** chọn database `postgres`, rồi menu **Tools → Query Tool**.
 - **psql:** mở **SQL Shell (psql)** (Windows) hoặc chạy `psql postgres` (macOS/Linux).
 
-Chạy 2 câu lệnh sau (thay `<mật khẩu>` bằng mật khẩu tự chọn cho user `qtkd_user`):
+Chạy các câu lệnh sau (thay `<mật khẩu>` bằng mật khẩu tự chọn cho user `qtkd_user`):
 
 ```sql
 CREATE ROLE qtkd_user LOGIN PASSWORD '<mật khẩu>';
-CREATE DATABASE qtkd OWNER qtkd_user ENCODING 'UTF8' TEMPLATE template0;
+CREATE DATABASE qtkd      OWNER qtkd_user ENCODING 'UTF8' TEMPLATE template0;
+CREATE DATABASE qtkd_test OWNER qtkd_user ENCODING 'UTF8' TEMPLATE template0;
 ```
 
-Kiểm tra database dùng bảng mã UTF-8 (cần để lưu tiếng Việt):
+- `qtkd`: database của ứng dụng, dùng khi chạy API.
+- `qtkd_test`: database riêng cho integration test. Bộ test xóa toàn bộ dữ liệu của database này trước mỗi test, vì vậy không dùng chung với `qtkd`.
+
+Kiểm tra bảng mã UTF-8 (cần để lưu tiếng Việt):
 
 ```sql
-SELECT datname, pg_encoding_to_char(encoding) FROM pg_database WHERE datname = 'qtkd';
+SELECT datname, pg_encoding_to_char(encoding) FROM pg_database WHERE datname IN ('qtkd', 'qtkd_test');
 ```
 
-Kết quả đúng: `qtkd | UTF8`.
+Kết quả đúng: cả hai dòng là `UTF8`.
 
 ## 4. Cấu hình chuỗi kết nối
 
@@ -61,7 +69,7 @@ File `src/QTKD.Api/appsettings.json` chỉ chứa chuỗi kết nối **không c
 dotnet user-secrets set "ConnectionStrings:QtkdDb" "Host=localhost;Port=5432;Database=qtkd;Username=qtkd_user;Password=<mật khẩu>" --project src/QTKD.Api
 ```
 
-Nếu PostgreSQL của bạn không dùng cổng 5432, đổi `Port=` cho đúng.
+Nếu PostgreSQL không dùng cổng 5432, đổi `Port=` cho đúng.
 
 Có thể dùng biến môi trường thay cho User Secrets:
 
@@ -74,9 +82,11 @@ export ConnectionStrings__QtkdDb="Host=localhost;Port=5432;Database=qtkd;Usernam
 $env:ConnectionStrings__QtkdDb = "Host=localhost;Port=5432;Database=qtkd;Username=qtkd_user;Password=<mật khẩu>"
 ```
 
+Integration test dùng lại chuỗi kết nối này và tự đổi tên database thành `qtkd_test`, nên không cần cấu hình thêm. Muốn dùng database kiểm thử khác, đặt `ConnectionStrings:QtkdTestDb` (User Secrets của `src/QTKD.Api` hoặc biến môi trường `ConnectionStrings__QtkdTestDb`); tên database phải kết thúc bằng `_test`, nếu không bộ test dừng ngay để tránh xóa nhầm dữ liệu.
+
 ## 5. Tạo bảng bằng migration
 
-Thư mục `src/QTKD.Api/Migrations/` đã có sẵn trong repository (gồm migration tạo bảng ban đầu và migration bổ sung cho luồng gửi duyệt hợp đồng), chỉ cần áp dụng vào database:
+Thư mục `src/QTKD.Api/Migrations/` có sẵn hai migration: `InitialCreate` (tuần 05) và `AddContractSubmission` (tuần 06). Áp dụng vào database `qtkd`:
 
 ```bash
 dotnet ef database update --project src/QTKD.Api
@@ -87,6 +97,8 @@ Kết quả đúng: các dòng `Applying migration '...'.` rồi `Done.`
 Trong lần chạy đầu có thể thấy một khối `fail: ... SELECT "MigrationId" ... FROM "__EFMigrationsHistory"`. Đây **không phải lỗi**: EF thử đọc bảng lịch sử migration trước khi bảng này được tạo.
 
 Database `qtkd` sau đó có 5 bảng `Customers`, `Contracts`, `PriceLists`, `PriceItems`, `ApprovalRequests` và bảng `__EFMigrationsHistory`.
+
+Database `qtkd_test` không cần chạy lệnh này: bộ integration test tự áp dụng migration khi bắt đầu.
 
 ## 6. Chạy API
 
@@ -130,7 +142,37 @@ SELECT * FROM "ApprovalRequests";
 
 (Tên bảng và cột có chữ hoa nên phải đặt trong dấu nháy kép.)
 
-## 8. Cấu trúc thư mục
+## 8. Chạy kiểm thử
+
+Cần hoàn thành mục 3 và 4 trước (database `qtkd_test` và chuỗi kết nối). Không cần chạy API.
+
+```bash
+dotnet test
+```
+
+Kết quả đúng: `Test summary: total: 39, failed: 0, succeeded: 39`.
+
+| Project | Loại | Phạm vi | Database |
+|---|---|---|---|
+| `tests/QTKD.UnitTests` | Unit test (30 test) | `ContractService` (CTR-01, CTR-02, CTR-03, gửi duyệt lặp) và `CustomerService` | Không dùng; repository được thay bằng bản giả trong bộ nhớ |
+| `tests/QTKD.IntegrationTests` | Integration test (9 test) | TC01–TC08 qua HTTP: tạo Customer, tạo/sửa Contract, gửi duyệt, đọc lại trạng thái | `qtkd_test` |
+
+Chạy riêng từng loại:
+
+```bash
+dotnet test tests/QTKD.UnitTests
+dotnet test tests/QTKD.IntegrationTests
+```
+
+Mỗi integration test kiểm tra cả HTTP status, nội dung response và dữ liệu đọc lại từ database. Bảng TC01–TC08, đối chiếu từng test với quy tắc và lỗi đã tìm thấy: [docs/kiem-thu.md](docs/kiem-thu.md).
+
+Lưu kết quả dạng TRX:
+
+```bash
+dotnet test --logger "trx;LogFileName=ket-qua.trx" --results-directory TestResults
+```
+
+## 9. Cấu trúc thư mục
 
 ```
 ├── QTKD.sln
@@ -145,27 +187,34 @@ SELECT * FROM "ApprovalRequests";
 │   ├── Middleware/     xử lý lỗi tập trung
 │   ├── Migrations/     migration của EF Core
 │   └── Program.cs
-└── docs/               tài liệu API, đối chiếu quy tắc nghiệp vụ, thiết kế
+├── tests/
+│   ├── QTKD.UnitTests/         unit test nghiệp vụ (repository giả)
+│   └── QTKD.IntegrationTests/  integration test qua HTTP và PostgreSQL
+└── docs/               kiến trúc, API, đối chiếu quy tắc nghiệp vụ, kiểm thử
 ```
 
 Luồng xử lý: `Controller → Service → Repository → DbContext → PostgreSQL`.
 Chi tiết kiến trúc và các quyết định thiết kế: [docs/architecture.md](docs/architecture.md).
 
-## 9. Lỗi thường gặp
+## 10. Lỗi thường gặp
 
 | Lỗi | Cách xử lý |
 |---|---|
 | `Couldn't find a project to run` | Chạy từ thư mục có `QTKD.sln` và giữ nguyên tham số `--project src/QTKD.Api` |
 | `28P01: password authentication failed` | Sai mật khẩu trong chuỗi kết nối: chạy `dotnet user-secrets list --project src/QTKD.Api` để xem lại |
 | `3D000: database "qtkd" does not exist` | Chưa tạo database ở mục 3 |
+| `3D000: database "qtkd_test" does not exist` (khi chạy test) | Chưa tạo database `qtkd_test` ở mục 3 |
 | `Failed to connect to 127.0.0.1:5432` | PostgreSQL chưa chạy, hoặc dùng cổng khác (sửa `Port=`) |
 | `relation "Customers" does not exist` | Chưa chạy `dotnet ef database update` (mục 5) |
-| `column "Content" does not exist` | Chưa áp dụng migration mới: chạy lại `dotnet ef database update` (mục 5) |
+| `column "Content" does not exist` | Chưa áp dụng migration `AddContractSubmission`: chạy lại `dotnet ef database update` (mục 5) |
+| `Integration test chỉ chạy trên database có tên kết thúc bằng _test` | `ConnectionStrings:QtkdTestDb` đang trỏ tới database khác; sửa lại tên database |
 | Cổng 5080 đang bị chiếm | Tắt tiến trình đang chạy API cũ (`Ctrl+C`) |
+| Log tiếng Việt hiện dấu `?` trong PowerShell | Chỉ là bảng mã của cửa sổ console; chạy `[Console]::OutputEncoding = [Text.Encoding]::UTF8` trước lệnh `dotnet` |
 
-## 10. Giới hạn hiện tại
+## 11. Giới hạn hiện tại
 
 - Chưa có module Approval: gửi duyệt thành công chỉ chuyển hợp đồng sang `PendingApproval` và ghi một dòng mô phỏng vào `ApprovalRequests`; không thể phê duyệt/từ chối.
 - Điều kiện nội dung/tệp bắt buộc của CTR-02 là giả định, chưa phải quy định chính thức (xem [docs/doi-chieu-quy-tac.md](docs/doi-chieu-quy-tac.md)).
-- Tệp đính kèm chỉ lưu tên tệp; chưa có xác thực, ký điện tử, giao diện web.
-- Chưa có test tự động.
+- Tệp đính kèm chỉ lưu tên tệp; chưa có xác thực, phân quyền, ký điện tử, giao diện web.
+- Phần Pricing chưa có test tự động; đã kiểm tra thủ công bằng Swagger ở tuần 06.
+- Không còn lỗi đã biết chưa sửa sau đợt kiểm thử tuần 07 (chi tiết trong [docs/kiem-thu.md](docs/kiem-thu.md)).
