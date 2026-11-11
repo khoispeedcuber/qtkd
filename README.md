@@ -166,10 +166,11 @@ dotnet test tests/QTKD.IntegrationTests
 
 Mỗi integration test kiểm tra cả HTTP status, nội dung response và dữ liệu đọc lại từ database. Bảng TC01–TC08, đối chiếu từng test với quy tắc và lỗi đã tìm thấy: [docs/kiem-thu.md](docs/kiem-thu.md).
 
-Lưu kết quả dạng TRX:
+Lưu kết quả dạng TRX (mỗi project một file trong thư mục `TestResults/`):
 
 ```bash
-dotnet test --logger "trx;LogFileName=ket-qua.trx" --results-directory TestResults
+dotnet test tests/QTKD.UnitTests --logger "trx;LogFileName=unit-tests.trx" --results-directory TestResults
+dotnet test tests/QTKD.IntegrationTests --logger "trx;LogFileName=integration-tests.trx" --results-directory TestResults
 ```
 
 ## 9. Cấu trúc thư mục
