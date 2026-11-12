@@ -86,11 +86,14 @@ Integration test dùng lại chuỗi kết nối này và tự đổi tên datab
 
 ## 5. Tạo bảng bằng migration
 
-Thư mục `src/QTKD.Api/Migrations/` có sẵn hai migration: `InitialCreate` (tuần 05) và `AddContractSubmission` (tuần 06). Áp dụng vào database `qtkd`:
+Thư mục `src/QTKD.Api/Migrations/` có sẵn hai migration: `InitialCreate` (tuần 05) và `AddContractSubmission` (tuần 06). Build một lần để tải các gói NuGet (bắt buộc với repository vừa clone), rồi áp dụng migration vào database `qtkd`:
 
 ```bash
+dotnet build
 dotnet ef database update --project src/QTKD.Api
 ```
+
+Nếu bỏ qua `dotnet build`, lệnh `dotnet ef` báo `NETSDK1004: Assets file ... project.assets.json not found`.
 
 Kết quả đúng: các dòng `Applying migration '...'.` rồi `Done.`
 
